@@ -1,5 +1,3 @@
-// File: src/components/ConnectWallet.js
-
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Onboard from '@web3-onboard/core';
@@ -30,6 +28,7 @@ const onboard = Onboard({
 
 const contractAddress = "0x80fE0E686e1E5D46Ff4c6AaeBb70f4B2153C3485"; // Replace with your contract address
 const contractABI = [
+  
   {
     "inputs": [],
     "stateMutability": "payable",
@@ -120,14 +119,30 @@ const ConnectWallet = () => {
   const [usdBalance, setUsdBalance] = useState(0);
 
   const fetchBnbToUsdRate = async () => {
-    try {
-      const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=binancecoin&vs_currencies=usd');
-      return response.data.binancecoin.usd;
-    } catch (error) {
-      console.error('Error fetching BNB to USD conversion rate:', error);
-      return null;
+    const maxRetries = 3;
+    let attempts = 0;
+    let success = false;
+    let rate = null;
+  
+    while (attempts < maxRetries && !success) {
+      try {
+        const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
+          params: { ids: 'binancecoin', vs_currencies: 'usd' }
+        });
+        rate = response.data.binancecoin.usd;
+        success = true;
+      } catch (error) {
+        attempts++;
+        console.error(`Attempt ${attempts} - Error fetching BNB to USD conversion rate:`, error.message);
+        if (attempts >= maxRetries) {
+          toast.error('Network error: Unable to fetch BNB to USD conversion rate. Please try again later.');
+        }
+      }
     }
+    
+    return rate;
   };
+  
 
   const updateUsdBalance = async (bnbBalance) => {
     const rate = await fetchBnbToUsdRate();
@@ -145,6 +160,7 @@ const ConnectWallet = () => {
         const signer = provider.getSigner();
         const address = await signer.getAddress();
         setUserAddress(address);
+        localStorage.setItem('userAddress', address);
         toast.success(`Connected: ${address}`);
         const balance = await provider.getBalance(address);
         console.log('Balance:', formatEther(balance));
@@ -161,6 +177,7 @@ const ConnectWallet = () => {
       await onboard.disconnectWallet({ label: wallets[0].label });
       setWallets([]);
       setUserAddress(null);
+      localStorage.removeItem('userAddress');
       toast.info('Wallet disconnected');
     } catch (err) {
       console.error(err);
@@ -185,12 +202,20 @@ const ConnectWallet = () => {
       toast.success(`Deposit successful, transaction hash: ${receipt.transactionHash}`);
 
       // Save transaction data to the backend
-      await axios.post('/api/save-deposit', {
-        userAddress,
-        amount: depositAmount,
-        usdBalance,
-        status: 'Successful',
-        transactionHash: receipt.transactionHash
+      const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
+      await fetch('https://trading-2-3d4p.onrender.com/deposit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          userAddress,
+          amount: depositAmount,
+          usdBalance,
+          status: 'Successful',
+          transactionHash: receipt.transactionHash
+        })
       });
 
       await getUserDepositBalance(userAddress);
@@ -200,12 +225,20 @@ const ConnectWallet = () => {
       toast.error(`Deposit error: ${err.message}`);
 
       // Save failed transaction data to the backend
-      await axios.post('/api/save-deposit', {
-        userAddress,
-        amount: depositAmount,
-        usdBalance,
-        status: 'Failed',
-        transactionHash: null
+      const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
+      await fetch('https://trading-2-3d4p.onrender.com/deposit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          userAddress,
+          amount: depositAmount,
+          usdBalance,
+          status: 'Failed',
+          transactionHash: null
+        })
       });
     }
   };
@@ -233,6 +266,7 @@ const ConnectWallet = () => {
         setWallets(previouslyConnectedWallets);
         const address = previouslyConnectedWallets[0].accounts[0].address;
         setUserAddress(address);
+        localStorage.setItem('userAddress', address);
         await getUserDepositBalance(address);
       }
     };
@@ -249,13 +283,28 @@ const ConnectWallet = () => {
     return () => clearInterval(interval);
   }, [userAddress, getUserDepositBalance]);
 
+  // Toast notification logic
+  useEffect(() => {
+    if (!toast.isActive(13, "friendRequest")) {
+      console.log("first time running");
+      toast('User does not exist', {
+        position: "bottom-right",
+        autoClose: false,
+        closeOnClick: true,
+        draggable: false,
+        type: "error",
+        toastId: 13
+      });
+    }
+  }, []);
+
   const truncateAddress = (address) => {
     return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
   };
 
   return (
     <div>
-      <ToastContainer />
+      <ToastContainer containerId={"friendRequest"}/>
       {wallets.length === 0 ? (
         <button onClick={connectWallet}>Connect Wallet</button>
       ) : (

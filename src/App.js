@@ -1,7 +1,8 @@
 import logo from './logo.svg';
 import './App.css';
-import SmDeposit from './SmDeposit';
+import SmDeposit from './DepositHistory';
 import ConnectWallet from './ConnectWallet';
+import DepositHistory from './DepositHistory';
 
 function App() {
   return (
@@ -9,6 +10,7 @@ function App() {
       <header className="App-header">
         <h1>Connect to Binance Smart Chain</h1>
         <ConnectWallet />
+        <DepositHistory />
       </header>
     </>
   )
