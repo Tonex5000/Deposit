@@ -192,57 +192,98 @@ const ConnectWallet = () => {
       toast.error('Please enter a valid deposit amount');
       return;
     }
+  
     try {
+      // Check if BNB is available on the user's MetaMask
       const provider = new Web3Provider(wallets[0].provider);
+      const network = await provider.getNetwork();
+  
+      if (network.chainId !== 56) { // 56 is the chain ID for Binance Smart Chain Mainnet
+        try {
+          await provider.send('wallet_addEthereumChain', [{
+            chainId: '0x38', // Hexadecimal value of 56
+            chainName: 'Binance Smart Chain',
+            nativeCurrency: {
+              name: 'Binance Coin',
+              symbol: 'BNB',
+              decimals: 18
+            },
+            rpcUrls: ['https://bsc-dataseed.binance.org/'],
+            blockExplorerUrls: ['https://bscscan.com']
+          }]);
+          toast.success('Binance Smart Chain added to MetaMask');
+        } catch (error) {
+          console.error('Failed to add Binance Smart Chain:', error);
+          toast.error('Failed to add Binance Smart Chain to MetaMask');
+          return;
+        }
+      }
+  
       const signer = provider.getSigner();
       const contract = new ethers.Contract(contractAddress, contractABI, signer);
       const tx = await contract.deposit({ value: parseEther(depositAmount.toString()) });
       const receipt = await provider.waitForTransaction(tx.hash);
       console.log("Deposit successful, transaction hash:", receipt.transactionHash);
+      
       toast.success(`Deposit successful, transaction hash: ${receipt.transactionHash}`);
-
-      // Save transaction data to the backend
-      const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
-      await fetch('https://trading-2-3d4p.onrender.com/deposit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          userAddress,
-          amount: depositAmount,
-          usdBalance,
-          status: 'Successful',
-          transactionHash: receipt.transactionHash
-        })
-      });
-
-      await getUserDepositBalance(userAddress);
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
-      toast.error(`Deposit error: ${err.message}`);
-
-      // Save failed transaction data to the backend
-      const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
-      await fetch('https://trading-2-3d4p.onrender.com/deposit', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          userAddress,
-          amount: depositAmount,
-          usdBalance,
-          status: 'Failed',
-          transactionHash: null
-        })
-      });
-    }
-  };
-
+  
+      // Get the current date and time
+      const currentDateTime = new Date().toISOString();
+  
+       // Save transaction data to the backend
+       const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
+       console.log(currentDateTime, depositAmount, "Successful")
+       const response = await fetch('https://trading-2-3d4p.onrender.com/deposit', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': `Bearer ${token}`
+         },
+         body: JSON.stringify({
+           date: currentDateTime,
+           amount: parseFloat(depositAmount),
+           status: 'Successful'
+         })
+       });
+       
+       if (response.ok) {
+         console.log('Data stored successfully for a successful deposit.');
+       } else {
+         console.log('Failed to store data for a successful deposit.');
+       }
+   
+       await getUserDepositBalance(userAddress);
+     } catch (err) {
+       console.error(err);
+       setError(err.message);
+       toast.error(`Deposit error: ${err.message}`);
+   
+       // Get the current date and time
+       const currentDateTime = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+   
+       // Save failed transaction data to the backend
+       const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
+       const response = await fetch('https://trading-2-3d4p.onrender.com/deposit', {
+         method: 'POST',
+         headers: {
+           'Content-Type': 'application/json',
+           'Authorization': `Bearer ${token}`
+         },
+         body: JSON.stringify({
+           date: currentDateTime,
+           amount: parseFloat(depositAmount),
+           status: 'Failed'
+         })
+       });
+ 
+       if (response.ok) {
+         console.log('Data stored successfully for a failed deposit.');
+       } else {
+         console.log('Failed to store data for a failed deposit.');
+       }
+     }
+   };
+  
   const getUserDepositBalance = useCallback(async (address) => {
     if (!wallets[0]) return;
     try {
@@ -319,7 +360,7 @@ const ConnectWallet = () => {
               value={depositAmount}
               onChange={(e) => setDepositAmount(e.target.value)}
             />
-            <button onClick={depositBNB}>Deposit BNB</button>
+            {<button onClick={depositBNB}>Deposit BNB</button>}
           </div>
         </div>
       )}

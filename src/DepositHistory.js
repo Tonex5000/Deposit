@@ -5,8 +5,7 @@ import 'react-toastify/dist/ReactToastify.css';
 const DepositHistory = () => {
   const [depositHistory, setDepositHistory] = useState([]);
   const [error, setError] = useState(null);
-  const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo1LCJleHAiOjE3MjMyNjExODR9.OjN4VgtFO85BEIhcOyEPGz6H3S6M8yIUQGMdO5HpHUk';
-  localStorage.setItem('token', token);
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
     const fetchDepositHistory = async () => {
