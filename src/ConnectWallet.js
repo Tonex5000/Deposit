@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from 'axios';
 import Onboard from '@web3-onboard/core';
 import injectedModule from '@web3-onboard/injected-wallets';
@@ -7,6 +7,8 @@ import { formatEther, parseEther } from 'ethers';
 import { ethers } from 'ethers';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { WalletContext } from './WalletContext';
+
 
 const injected = injectedModule();
 const onboard = Onboard({
@@ -111,6 +113,7 @@ const contractABI = [
 ];
 
 const ConnectWallet = () => {
+  const { setWalletAddress } = useContext(WalletContext);
   const [wallets, setWallets] = useState([]);
   const [userAddress, setUserAddress] = useState(null);
   const [error, setError] = useState(null);
@@ -135,7 +138,7 @@ const ConnectWallet = () => {
         attempts++;
         console.error(`Attempt ${attempts} - Error fetching BNB to USD conversion rate:`, error.message);
         if (attempts >= maxRetries) {
-          toast.error('Network error: Unable to fetch BNB to USD conversion rate. Please try again later.');
+         /*  toast.error('Network error: Unable to fetch BNB to USD conversion rate. Please try again later.'); */
         }
       }
     }
@@ -160,8 +163,9 @@ const ConnectWallet = () => {
         const signer = provider.getSigner();
         const address = await signer.getAddress();
         setUserAddress(address);
+        setWalletAddress(address);
         localStorage.setItem('userAddress', address);
-        toast.success(`Connected: ${address}`);
+       /*  toast.success(`Connected: ${address}`); */
         const balance = await provider.getBalance(address);
         console.log('Balance:', formatEther(balance));
         await getUserDepositBalance(address);
@@ -177,12 +181,13 @@ const ConnectWallet = () => {
       await onboard.disconnectWallet({ label: wallets[0].label });
       setWallets([]);
       setUserAddress(null);
+      setWalletAddress(null);
       localStorage.removeItem('userAddress');
       toast.info('Wallet disconnected');
     } catch (err) {
       console.error(err);
       setError(err.message);
-      toast.error(`Disconnection error: ${err.message}`);
+      /* toast.error(`Disconnection error: ${err.message}`); */
     }
   };
 
@@ -214,15 +219,20 @@ const ConnectWallet = () => {
           toast.success('Binance Smart Chain added to MetaMask');
         } catch (error) {
           console.error('Failed to add Binance Smart Chain:', error);
-          toast.error('Failed to add Binance Smart Chain to MetaMask');
+          toast.error('Failed to add Binance Smart Chain to MetaMask'); 
           return;
         }
       }
   
       const signer = provider.getSigner();
+      const userAddress = await signer.getAddress();
       const contract = new ethers.Contract(contractAddress, contractABI, signer);
       const tx = await contract.deposit({ value: parseEther(depositAmount.toString()) });
       const receipt = await provider.waitForTransaction(tx.hash);
+
+      const transactionHash = receipt.transactionHash;
+      const transactionFee = receipt.gasUsed.mul(tx.gasPrice).toString();
+
       console.log("Deposit successful, transaction hash:", receipt.transactionHash);
       
       toast.success(`Deposit successful, transaction hash: ${receipt.transactionHash}`);
@@ -233,7 +243,8 @@ const ConnectWallet = () => {
        // Save transaction data to the backend
        const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
        console.log(currentDateTime, depositAmount, "Successful")
-       const response = await fetch('https://trading-2-3d4p.onrender.com/deposit', {
+
+       const response = await fetch('http://127.0.0.1:5000/deposit', {
          method: 'POST',
          headers: {
            'Content-Type': 'application/json',
@@ -242,14 +253,18 @@ const ConnectWallet = () => {
          body: JSON.stringify({
            date: currentDateTime,
            amount: parseFloat(depositAmount),
-           status: 'Successful'
+           status: 'Successful',
+           transactionHash,
+           contractAddress,
+           transactionFee,
+           walletAddress: userAddress
          })
        });
        
        if (response.ok) {
          console.log('Data stored successfully for a successful deposit.');
        } else {
-         console.log('Failed to store data for a successful deposit.');
+         console.log('Failed to store data for a successful deposit.') ;
        }
    
        await getUserDepositBalance(userAddress);
@@ -259,11 +274,11 @@ const ConnectWallet = () => {
        toast.error(`Deposit error: ${err.message}`);
    
        // Get the current date and time
-       const currentDateTime = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+       const currentDateTime = new Date().toISOString();
    
        // Save failed transaction data to the backend
        const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
-       const response = await fetch('https://trading-2-3d4p.onrender.com/deposit', {
+       const response = await fetch('http://127.0.0.1:5000/deposit', {
          method: 'POST',
          headers: {
            'Content-Type': 'application/json',
@@ -272,7 +287,11 @@ const ConnectWallet = () => {
          body: JSON.stringify({
            date: currentDateTime,
            amount: parseFloat(depositAmount),
-           status: 'Failed'
+           status: 'Failed',
+           transactionHash: 'N/A',
+           contractAddress,
+           transactionFee: 'N/A',
+           walletAddress: userAddress
          })
        });
  
@@ -296,7 +315,7 @@ const ConnectWallet = () => {
     } catch (err) {
       console.error(err);
       setError(err.message);
-      toast.error(`Error fetching balance: ${err.message}`);
+    /*   toast.error(`Error fetching balance: ${err.message}`); */
     }
   }, [wallets]);
 
@@ -325,7 +344,7 @@ const ConnectWallet = () => {
   }, [userAddress, getUserDepositBalance]);
 
   // Toast notification logic
-  useEffect(() => {
+/*   useEffect(() => {
     if (!toast.isActive(13, "friendRequest")) {
       console.log("first time running");
       toast('User does not exist', {
@@ -337,7 +356,7 @@ const ConnectWallet = () => {
         toastId: 13
       });
     }
-  }, []);
+  }, []); */
 
   const truncateAddress = (address) => {
     return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
@@ -345,7 +364,7 @@ const ConnectWallet = () => {
 
   return (
     <div>
-      <ToastContainer containerId={"friendRequest"}/>
+      <ToastContainer />
       {wallets.length === 0 ? (
         <button onClick={connectWallet}>Connect Wallet</button>
       ) : (
