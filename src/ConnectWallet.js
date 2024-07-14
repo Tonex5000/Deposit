@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+/* import React, { useState, useEffect, useCallback, useContext } from 'react';
 import axios from 'axios';
 import Onboard from '@web3-onboard/core';
 import injectedModule from '@web3-onboard/injected-wallets';
@@ -30,7 +30,6 @@ const onboard = Onboard({
 
 const contractAddress = "0x80fE0E686e1E5D46Ff4c6AaeBb70f4B2153C3485"; // Replace with your contract address
 const contractABI = [
-  
   {
     "inputs": [],
     "stateMutability": "payable",
@@ -126,7 +125,7 @@ const ConnectWallet = () => {
     let attempts = 0;
     let success = false;
     let rate = null;
-  
+
     while (attempts < maxRetries && !success) {
       try {
         const response = await axios.get('https://api.coingecko.com/api/v3/simple/price', {
@@ -138,14 +137,13 @@ const ConnectWallet = () => {
         attempts++;
         console.error(`Attempt ${attempts} - Error fetching BNB to USD conversion rate:`, error.message);
         if (attempts >= maxRetries) {
-         /*  toast.error('Network error: Unable to fetch BNB to USD conversion rate. Please try again later.'); */
+          // toast.error('Network error: Unable to fetch BNB to USD conversion rate. Please try again later.');
         }
       }
     }
-    
+
     return rate;
   };
-  
 
   const updateUsdBalance = async (bnbBalance) => {
     const rate = await fetchBnbToUsdRate();
@@ -165,9 +163,9 @@ const ConnectWallet = () => {
         setUserAddress(address);
         setWalletAddress(address);
         localStorage.setItem('userAddress', address);
-       /*  toast.success(`Connected: ${address}`); */
         const balance = await provider.getBalance(address);
-        console.log('Balance:', formatEther(balance));
+        const bigNumberBalance = utils.BigNumber.from(balance);
+        console.log('Balance:', formatEther(bigNumberBalance));
         await getUserDepositBalance(address);
       }
     } catch (err) {
@@ -176,33 +174,41 @@ const ConnectWallet = () => {
     }
   };
 
+
   const disconnectWallet = async () => {
     try {
-      await onboard.disconnectWallet({ label: wallets[0].label });
+      if (wallets[0]) {
+        await onboard.disconnectWallet({ label: wallets[0].label });
+      }
       setWallets([]);
       setUserAddress(null);
       setWalletAddress(null);
       localStorage.removeItem('userAddress');
-      toast.info('Wallet disconnected');
+      // toast.info('Wallet disconnected');
     } catch (err) {
       console.error(err);
       setError(err.message);
-      /* toast.error(`Disconnection error: ${err.message}`); */
+      // toast.error(`Disconnection error: ${err.message}`);
     }
   };
 
   const depositBNB = async () => {
     if (!depositAmount || isNaN(parseFloat(depositAmount))) {
       setError('Please enter a valid deposit amount');
-      toast.error('Please enter a valid deposit amount');
+      // toast.error('Please enter a valid deposit amount');
       return;
     }
-  
+
     try {
-      // Check if BNB is available on the user's MetaMask
+      if (!wallets[0]) {
+        setError('No wallet connected');
+        // toast.error('No wallet connected');
+        return;
+      }
+
       const provider = new Web3Provider(wallets[0].provider);
       const network = await provider.getNetwork();
-  
+
       if (network.chainId !== 56) { // 56 is the chain ID for Binance Smart Chain Mainnet
         try {
           await provider.send('wallet_addEthereumChain', [{
@@ -216,14 +222,14 @@ const ConnectWallet = () => {
             rpcUrls: ['https://bsc-dataseed.binance.org/'],
             blockExplorerUrls: ['https://bscscan.com']
           }]);
-          toast.success('Binance Smart Chain added to MetaMask');
+          // toast.success('Binance Smart Chain added to MetaMask');
         } catch (error) {
           console.error('Failed to add Binance Smart Chain:', error);
-          toast.error('Failed to add Binance Smart Chain to MetaMask'); 
+          // toast.error('Failed to add Binance Smart Chain to MetaMask');
           return;
         }
       }
-  
+
       const signer = provider.getSigner();
       const userAddress = await signer.getAddress();
       const contract = new ethers.Contract(contractAddress, contractABI, signer);
@@ -234,90 +240,107 @@ const ConnectWallet = () => {
       const transactionFee = receipt.gasUsed.mul(tx.gasPrice).toString();
 
       console.log("Deposit successful, transaction hash:", receipt.transactionHash);
-      
-      toast.success(`Deposit successful, transaction hash: ${receipt.transactionHash}`);
-  
+
+      // toast.success(`Deposit successful, transaction hash: ${receipt.transactionHash}`);
+
       // Get the current date and time
       const currentDateTime = new Date().toISOString();
-  
-       // Save transaction data to the backend
-       const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
-       console.log(currentDateTime, depositAmount, "Successful")
 
-       const response = await fetch('http://127.0.0.1:5000/deposit', {
-         method: 'POST',
-         headers: {
-           'Content-Type': 'application/json',
-           'Authorization': `Bearer ${token}`
-         },
-         body: JSON.stringify({
-           date: currentDateTime,
-           amount: parseFloat(depositAmount),
-           status: 'Successful',
-           transactionHash,
-           contractAddress,
-           transactionFee,
-           walletAddress: userAddress
-         })
-       });
-       
-       if (response.ok) {
-         console.log('Data stored successfully for a successful deposit.');
-       } else {
-         console.log('Failed to store data for a successful deposit.') ;
-       }
-   
-       await getUserDepositBalance(userAddress);
-     } catch (err) {
-       console.error(err);
-       setError(err.message);
-       toast.error(`Deposit error: ${err.message}`);
-   
-       // Get the current date and time
-       const currentDateTime = new Date().toISOString();
-   
-       // Save failed transaction data to the backend
-       const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
-       const response = await fetch('http://127.0.0.1:5000/deposit', {
-         method: 'POST',
-         headers: {
-           'Content-Type': 'application/json',
-           'Authorization': `Bearer ${token}`
-         },
-         body: JSON.stringify({
-           date: currentDateTime,
-           amount: parseFloat(depositAmount),
-           status: 'Failed',
-           transactionHash: 'N/A',
-           contractAddress,
-           transactionFee: 'N/A',
-           walletAddress: userAddress
-         })
-       });
- 
-       if (response.ok) {
-         console.log('Data stored successfully for a failed deposit.');
-       } else {
-         console.log('Failed to store data for a failed deposit.');
-       }
-     }
-   };
-  
+      // Save transaction data to the backend
+      const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
+      console.log(currentDateTime, depositAmount, "Successful");
+
+      const response = await fetch('http://127.0.0.1:5000/deposit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          date: currentDateTime,
+          amount: parseFloat(depositAmount),
+          status: 'Successful',
+          transactionHash,
+          contractAddress,
+          transactionFee,
+          walletAddress: userAddress
+        })
+      });
+
+      if (response.ok) {
+        console.log('Data stored successfully for a successful deposit.');
+      } else {
+        console.log('Failed to store data for a successful deposit.');
+      }
+
+      await getUserDepositBalance(userAddress);
+    } catch (err) {
+      setError(err.message);
+      // toast.error(`Deposit error: ${err.message}`);
+
+      // Get the current date and time
+      const currentDateTime = new Date().toISOString();
+
+      // Save failed transaction data to the backend
+      const token = localStorage.getItem('token'); // Assuming JWT is stored in localStorage
+      const response = await fetch('http://127.0.0.1:5000/deposit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          date: currentDateTime,
+          amount: parseFloat(depositAmount),
+          status: 'Failed',
+          transactionHash: 'N/A',
+          contractAddress,
+          transactionFee: 'N/A',
+          walletAddress: userAddress
+        })
+      });
+
+      if (response.ok) {
+        console.log('Data stored successfully for a failed deposit.');
+      } else {
+        console.log('Failed to store data for a failed deposit.');
+      }
+    }
+  };
+
   const getUserDepositBalance = useCallback(async (address) => {
-    if (!wallets[0]) return;
+    if (!address) {
+      console.error('Invalid address');
+      setError('Invalid address');
+      return;
+    }
+  
     try {
+      if (!wallets[0] || !wallets[0].provider) {
+        console.error('No wallet connected or provider is null');
+        setError('No wallet connected');
+        return;
+      }
+  
       const provider = new Web3Provider(wallets[0].provider);
       const contract = new ethers.Contract(contractAddress, contractABI, provider);
-      const balance = await contract.getUserDepositBalance({ from: address });
-      const formattedBalance = parseFloat(formatEther(balance)).toFixed(4);
-      setUserDepositBalance(formattedBalance);
-      await updateUsdBalance(formattedBalance);
-    } catch (err) {
-      console.error(err);
-      setError(err.message);
-    /*   toast.error(`Error fetching balance: ${err.message}`); */
+  
+      // Ensure the contract method exists
+      if (typeof contract.getUserDepositBalance !== 'function') {
+        console.error('getUserDepositBalance method not found in contract');
+        setError('Contract method not found');
+        return;
+      }
+  
+      const balance = await contract.getUserDepositBalance();
+      setUserDepositBalance(formatEther(balance));
+      await updateUsdBalance(formatEther(balance));
+    } catch (error) {
+      console.error('Error fetching user deposit balance:', error);
+      setError(error.message);
     }
-  }, [wallets]);
+  }, [wallets, updateUsdBalance]);
+  
 
   useEffect(() => {
     const loadConnectedWallets = async () => {
@@ -327,11 +350,13 @@ const ConnectWallet = () => {
         const address = previouslyConnectedWallets[0].accounts[0].address;
         setUserAddress(address);
         localStorage.setItem('userAddress', address);
-        await getUserDepositBalance(address);
+        if (wallets[0] && wallets[0].provider) {
+          await getUserDepositBalance(address);
+        }
       }
     };
     loadConnectedWallets();
-  }, [getUserDepositBalance]);
+  }, [getUserDepositBalance, wallets]);
 
   useEffect(() => {
     let interval;
@@ -342,21 +367,6 @@ const ConnectWallet = () => {
     }
     return () => clearInterval(interval);
   }, [userAddress, getUserDepositBalance]);
-
-  // Toast notification logic
-/*   useEffect(() => {
-    if (!toast.isActive(13, "friendRequest")) {
-      console.log("first time running");
-      toast('User does not exist', {
-        position: "bottom-right",
-        autoClose: false,
-        closeOnClick: true,
-        draggable: false,
-        type: "error",
-        toastId: 13
-      });
-    }
-  }, []); */
 
   const truncateAddress = (address) => {
     return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : '';
@@ -383,9 +393,10 @@ const ConnectWallet = () => {
           </div>
         </div>
       )}
-      {/* {error && <p style={{ color: 'red' }}>{error}</p>} */}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
   );
 };
 
 export default ConnectWallet;
+ */
