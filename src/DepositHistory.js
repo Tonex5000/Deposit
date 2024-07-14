@@ -46,7 +46,6 @@ const DepositHistory = () => {
             <th>Timestamp</th>
             <th>Transaction Hash</th>
             <th>Contract Address</th>
-            <th>Transaction Fee</th>
           </tr>
         </thead>
         <tbody>
@@ -57,7 +56,6 @@ const DepositHistory = () => {
               <td>{new Date(deposit.timestamp * 1000).toLocaleString()}</td>
               <td>{deposit.transaction_hash}</td>
               <td>{deposit.contract_address}</td>
-              <td>{deposit.transaction_fee}</td>
             </tr>
           ))}
         </tbody>
